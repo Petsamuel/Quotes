@@ -1,4 +1,4 @@
-# Asynchronous Web Scraping Project
+# Web Scraping Quote Generator
 
 This project demonstrates how to perform asynchronous web scraping using FastAPI, aiohttp, and BeautifulSoup. The application scrapes quotes from two websites: [Quotes to Scrape](http://quotes.toscrape.com) and [Goodreads Quotes](https://www.goodreads.com/quotes).
 
@@ -44,8 +44,8 @@ This project demonstrates how to perform asynchronous web scraping using FastAPI
 
 ## Project Files
 
-- [main.py](http://_vscodecontentref_/2): The main FastAPI application file that handles the asynchronous scraping.
-- [requirements.py](""): Contains all the dependencies  
+- [main.py](./main.py): The main FastAPI application file that handles the asynchronous scraping.
+- [requirements.txt](./requirements.txt): Contains all the dependencies  
 <!-- - `async_scraper.py`: Contains the asynchronous scraping logic. -->
 <!-- - `parser.py`: Contains the parsing logic for the scraped HTML content. -->
 <!-- - `helpers.py`: Utility functions used in the project. -->
@@ -57,4 +57,4 @@ The application scrapes quotes from the specified URLs and returns them as a JSO
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE]("./LINCENSE") file for details.
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
