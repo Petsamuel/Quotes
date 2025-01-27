@@ -1,16 +1,19 @@
-import requests
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 from bs4 import BeautifulSoup
-import time
+import aiohttp
+import asyncio
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.inmemory import InMemoryBackend
+from fastapi_cache.decorator import cache
+app = FastAPI()
 
+async def fetch(session, url):
+    """Fetch the HTML content of a URL asynchronously."""
+    async with session.get(url) as response:
+        return await response.text()
 
-
-
-
-app =FastAPI()
-
-def scrape_quotes_toscrape(soup):
+async def scrape_quotes_toscrape(soup):
     """Scrape quotes from http://quotes.toscrape.com."""
     quotes = []
     for quote in soup.find_all("div", class_="quote"):
@@ -19,7 +22,7 @@ def scrape_quotes_toscrape(soup):
         quotes.append({"text": text, "author": author})
     return quotes
 
-def scrape_quotes_goodreads(soup):
+async def scrape_quotes_goodreads(soup):
     """Scrape quotes from https://www.goodreads.com/quotes."""
     quotes = []
     for quote in soup.find_all("div", class_="quoteText"):
@@ -28,39 +31,50 @@ def scrape_quotes_goodreads(soup):
         quotes.append({"text": text, "author": author})
     return quotes
 
+async def scrape_url(session, url):
+    """Scrape quotes from a single URL."""
+    try:
+        html = await fetch(session, url)
+        soup = BeautifulSoup(html, "html.parser")
+
+        if "toscrape" in url:
+            return await scrape_quotes_toscrape(soup)
+        elif "goodreads" in url:
+            return await scrape_quotes_goodreads(soup)
+        else:
+            return []
+    except Exception as e:
+        print(f"Error scraping {url}: {e}")
+        return []
+
+@app.on_event("startup")
+async def startup():
+    FastAPICache.init(InMemoryBackend(), prefix="fastapi-cache")
+
 @app.get("/", response_class=JSONResponse)
-def getQuotes():
-    headers ={
+@cache(expire=300) # Cache the response for 300 seconds
+async def getQuotes(category: str = Query(None, description="Category of quotes to scrape")):
+    headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
     }
-    urls = [
-        "http://quotes.toscrape.com",
-        "https://www.goodreads.com/quotes"
-    ]
-    all_quotes = []
+    base_urls = {
+        "toscrape": "http://quotes.toscrape.com",
+        "goodreads": "https://www.goodreads.com/quotes"
+    }
 
-    for url in urls:
-        try:
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()  
-            soup = BeautifulSoup(response.text, "html.parser")
-            time.sleep(1)
-            
-            if "toscrape" in url:
-                quotes = scrape_quotes_toscrape(soup)
-            elif "goodreads" in url:
-                quotes = scrape_quotes_goodreads(soup)
-            else:
-                quotes = []
+    urls = []
+    if category:
+        for key, base_url in base_urls.items():
+            urls.append(f"{base_url}/tag/{category}")
+    else:
+        urls = list(base_urls.values())
 
-            all_quotes.extend(quotes)
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching {url}: {e}")
-
-    return {"quotes": all_quotes}
-
-
+    async with aiohttp.ClientSession(headers=headers) as session:
+        tasks = [scrape_url(session, url) for url in urls]
+        results = await asyncio.gather(*tasks)
+        all_quotes = [quote for result in results for quote in result]
+        return {"quotes": all_quotes}
 
 if __name__ == "__main__":
-    import uvicorn 
-    uvicorn.run("main:app", host="127.0.0.1", port=8000,  reload=True)
+    import uvicorn
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
